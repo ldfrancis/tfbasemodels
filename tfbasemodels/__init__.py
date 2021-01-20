@@ -1,1 +1,1 @@
-from .tf.vgg import VGG, VGG16, VGG19
+from .vgg import VGG, VGG16, VGG19
