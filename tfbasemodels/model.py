@@ -1,91 +1,73 @@
 from abc import ABC, abstractmethod, abstractproperty
+import tensorflow as tf
+from .utils.file_utils import download_file, obtain_base_dir, validate_file
 
 
-class BaseModel(ABC):
+class TFBaseModel(ABC):
     """A wrapper for a tf.keras.Model instance
     """
+
     def __init__(self, pretrained=False):
-        """builds the model architecture and creates a Model Instance
-        The Model instance is equivalent to torch.nn.Module instance in pytorch
-        and tensorflow.keras.Model instance in tensorflow
+        """builds the model architecture and creates a tf.keras.Model Instance
         """
+        tf.get_logger().setLevel('ERROR')
+        tf.autograph.set_verbosity(3)
         self.model = self.build()
 
-        
-    @abstractproperty
-    def weights(self):
-        """returns the weights and biases of a model as
-        a list
-        """
-        raise NotImplementedError()
+        # load model weights if pretrained
+        if pretrained:
+            self.load_pretrained()
 
-
-    @abstractproperty
-    def trainable_variables(self):
-        """returns the trainable parameters in self.model
-        """
-        raise NotImplementedError()
-
-
-    @abstractproperty
-    def flops(self):
-        """Number of multiply-adds in model
-        """
-        raise NotImplementedError()
-
+    def __getattr__(self, name):
+        return getattr(self.model, name)
 
     @abstractmethod
     def build(self):
         """Must be implemented by subclass. The model architecture is built and
-        a Model instance is returned.
+        a tf.keras.Model instance is returned.
         """
         raise NotImplementedError()
 
-    @abstractmethod
-    def load_weights(self, filepath):
-        """Loads the weights
+    @property
+    def flops(self):
+        """Number of multiply-adds in model
         """
-        raise NotImplementedError()
+        total_flops = 0
+        for layer in self.model.layers:
+            try:
+                kernel_shape = layer.kernel.shape[:-1]
+            except:
+                continue
+            output_shape = layer.output.shape[1:]
+            flops = (tf.math.reduce_prod(kernel_shape) *
+                     tf.math.reduce_prod(output_shape)).numpy()
+            total_flops += flops
 
-    @abstractmethod
-    def save_weights(self, filepath):
-        """Saves the weights
-        """
-        raise NotImplementedError()
+        GFLOPs = f"{round(total_flops / 1e9, 2)}G flops"
 
-    @abstractmethod
+        return GFLOPs
+
     def train(self):
         """Trains the model
-        """ 
-        raise NotImplementedError()
-
-    @abstractmethod
-    def summary(self):
-        """Displays/Prints model layers, output sizes and number of trainable 
-        and non-trainable parameters
         """
-        raise NotImplementedError()
-        
-    @abstractmethod
+        raise NotImplementedError
+
     def load_pretrained(self):
         """Loads pretrained weights for the model to use
         """
-        raise NotImplementedError()
+        file_dir_name = self.__class__.__name__
+        model_path = \
+            obtain_base_dir() / file_dir_name / self.pretrained_weights_name
 
+        # check if model file exists and is valid
+        should_download = True
+        if model_path.exists():
+            should_download = not validate_file(model_path, self.filehash)
 
-    def __call__(self, x):
-        """Forward pass through the self.model
+        if should_download:
+            print("Downloading pretrained weights")
+            download_file(self.pretrained_weights_url,
+                          file_dir_name,
+                          self.pretrained_weights_name)
 
-        Args:
-            x: Tensor. Input tensor
-
-        Returns:
-            a Tensor
-        """
-        assert self.model != None
-        return self.model(x)
-
-
-                
-
-
+        self.load_weights(model_path)

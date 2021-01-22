@@ -1,5 +1,5 @@
 import tensorflow as tf
-from ..tfbasemodel import TFBaseModel
+from .model import TFBaseModel
 
 
 class VGG(TFBaseModel):

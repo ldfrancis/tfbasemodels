@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+
 class LeNet5(tf.keras.Model):
     """LeNet-5 architecture with relu activations. 
     input size is 28 x 28
@@ -15,7 +16,7 @@ class LeNet5(tf.keras.Model):
         # bias size:    6
         self.conv1 = tf.keras.layers.Conv2D(filters=6,
                                             kernel_size=5,
-                                            padding=2
+                                            padding=2,
                                             strides=1)
         # input size:   6x14x14
         # output size:  16x10x10
