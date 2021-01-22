@@ -50,7 +50,7 @@ class TFBaseModel(ABC):
     def train(self):
         """Trains the model
         """
-        raise NotImplementedError
+        pass
 
     def load_pretrained(self):
         """Loads pretrained weights for the model to use

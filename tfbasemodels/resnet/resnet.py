@@ -16,30 +16,30 @@ class ResNet(TFBaseModel):
         self.preact = False
         self.bottleneck = False
         self.set_filters_and_shortcuts()
-        self.block2_filters = None
-        self.block2_shortcuts = None
-        self.block3_filters = None
-        self.block3_shortcuts = None
-        self.block4_filters = None
-        self.block4_shortcuts = None
-        self.block5_filters = None
-        self.block5_shortcuts = None
+        self.stage2_filters = None
+        self.stage2_shortcuts = None
+        self.stage3_filters = None
+        self.stage3_shortcuts = None
+        self.stage4_filters = None
+        self.stage4_shortcuts = None
+        self.stage5_filters = None
+        self.stage5_shortcuts = None
         super().__init__()
 
     @abstractmethod
     def set_filters_and_shortcuts(self):
         """Must be implemented by subclass. Sets the number of filters and type of shortcut for each 
-        block based on the number of layers
+        the blocks in each stage, based on the number of layers
         specified.
         This method must set the following attributes
-        self.block2_filters : List[Tuple]
-        self.block2_shortcuts: List[string]
-        self.block3_filters
-        self.block3_shortcuts
-        self.block4_filters
-        self.block4_shortcuts
-        self.block5_filters
-        self.block5_shortcuts
+        self.stage2_filters : List[Tuple]
+        self.stage2_shortcuts: List[string]
+        self.stage3_filters
+        self.stage3_shortcuts
+        self.stage4_filters
+        self.stage4_shortcuts
+        self.stage5_filters
+        self.stage5_shortcuts
         self.bottleneck
         self.preact
 
@@ -55,50 +55,50 @@ class ResNet(TFBaseModel):
 
         # input size: 224x224x3
         # output size: 112x112x64
-        # stem; block 1
+        # stem; stage 1
         x = self.stem(x_inp)
 
         # pool
         # input size: 112x112x64
-        # ouput size: 56x56x64
+        # output size: 56x56x64
         x = tf.keras.layers.MaxPool2D(pool_size=3,
                                       strides=2,
                                       padding="same")(x)
 
         # input size: 56x56x64
         # output size: 56x56x_
-        # block 2
-        x = self.build_block(x,
-                             block=2,
-                             blocks_filters=self.block2_filters,
-                             shortcuts=self.block2_shortcuts,
+        # stage 2
+        x = self.build_stage(x,
+                             stage=2,
+                             blocks_filters=self.stage2_filters,
+                             shortcuts=self.stage2_shortcuts,
                              strides=1)
 
-        # block 3
+        # stage 3
         # input size: 56x56x_
         # output size: 28x28x_
-        x = self.build_block(x,
-                             block=2,
-                             blocks_filters=self.block3_filters,
-                             shortcuts=self.block3_shortcuts,
+        x = self.build_stage(x,
+                             stage=2,
+                             blocks_filters=self.stage3_filters,
+                             shortcuts=self.stage3_shortcuts,
                              strides=2)
 
-        # block 4
+        # stage 4
         # input size: 28x28x_
         # output size: 14x14x_
-        x = self.build_block(x,
-                             block=3,
-                             blocks_filters=self.block4_filters,
-                             shortcuts=self.block4_shortcuts,
+        x = self.build_stage(x,
+                             stage=3,
+                             blocks_filters=self.stage4_filters,
+                             shortcuts=self.stage4_shortcuts,
                              strides=2)
 
-        # block 5
+        # stage 5
         # input size: 14x14x_
         # output size: 7x7x_
-        x = self.build_block(x,
-                             block=5,
-                             blocks_filters=self.block5_filters,
-                             shortcuts=self.block5_shortcuts,
+        x = self.build_stage(x,
+                             stage=5,
+                             blocks_filters=self.stage5_filters,
+                             shortcuts=self.stage5_shortcuts,
                              strides=2)
 
         # pool
@@ -109,16 +109,16 @@ class ResNet(TFBaseModel):
 
         return tf.keras.Model(inputs=[x_inp], outputs=[logits])
 
-    def build_block(self, x, block=None, blocks_filters=[], shortcuts=[], strides=2):
-        """A block of a deep residual network
+    def build_stage(self, x, stage=None, blocks_filters=None, shortcuts=None, strides=2):
+        """A stage of a deep residual network
 
         Args: 
             x: Tensor. the input tensor
-            block: int or string. The block of the resnet currently being built
+            stage: int or string. The stage of the resnet currently being built
             blocks_filters: list of tuples. a list containing the number of filters to use
-                for each block
+                for each block in the stage
             shortcuts: list of strings. a list specifying the type of shortcut to use for 
-                each block
+                each block in the stage
             strides: int. strides to use for the first convolution and the shortcut
 
         Returns:
@@ -127,21 +127,21 @@ class ResNet(TFBaseModel):
         for i, block_filters, shortcut_ in enumerate(zip(blocks_filters, shortcuts)):
             reduction_network = len(blocks_filters) - 1 if self.preact else 0
             strides_ = strides if i == reduction_network else 1
-            x = self.residual_network(x,
-                                      shortcut=shortcut_,
-                                      block=block,
-                                      network=str(i + 1),
-                                      conv_filters=block_filters,
-                                      strides=strides_,
-                                      bottleneck=self.bottleneck)
+            x = self.residual_block(x,
+                                    shortcut=shortcut_,
+                                    stage=stage,
+                                    block=str(i + 1),
+                                    conv_filters=block_filters,
+                                    strides=strides_,
+                                    bottleneck=self.bottleneck)
 
         return x
 
     def stem(self, x):
-        """Stem layers for resnet consisting only of a convolutional layer that redueces
+        """Stem layers for resnet consisting only of a convolutional layer that reduces
         the spatial dimensions from 224x224 to 112x112
 
-        Atgs:
+        Args:
             x: Tensor. the input tensor
 
         Returns:
@@ -156,19 +156,19 @@ class ResNet(TFBaseModel):
 
         return x
 
-    def residual_network(self, x, shortcut="identity", bottleneck=True, block=None, network=None, conv_filters=[],
-                         strides=1):
-        """A Residual block for resnet that accounts for full preactivation. input x can either be an output of a convolutional layer
-        without activation or not. 
+    def residual_block(self, x, shortcut="identity", bottleneck=True, stage=None, block=None, conv_filters=None,
+                       strides=1):
+        """A Residual block for resnet that accounts for full pre-activation. input x can either be an output of
+        a convolutional layer with or without activation.
 
         Args:
             x: input tensor: Tensor
-            shortcut: string. Detertmines whether to use identity or projection shortcuts. can be either of "identity" or
-                "projection"
-            bottleneck: boolean. whether to use a bottleneck block or not
-            block: string or int. Tells what block of the whole network that the block belongs to. 
+            shortcut: string. Determines whether to use identity or projection shortcuts. can be either of "identity"
+            or "projection"
+            bottleneck: boolean. whether to use a bottleneck stage or not
+            stage: string or int. Tells what stage the residual network belongs to.
                 Used to specify the name of an operation in the residual block
-            block: string or int. Tells the name of a block in a block
+            block: string or int. Tells the name of the residual block in a stage
                 Used to specify the name of an operation in the residual block
             conv_filters: list of ints. Used to specify the number of filters to be used in conv layers of a block.
                 for bottleneck blocks, conv_filters = [filter1, filter2, filter3]
@@ -178,10 +178,10 @@ class ResNet(TFBaseModel):
         Returns:
             a Tensor
         """
-        assert block is not None and network is not None
+        assert stage is not None and block is not None
         assert shortcut in ["identity", "projection"]
 
-        base_name = "residual_" + str(block) + "_" + str(network)
+        base_name = "residual_" + str(stage) + "_" + str(block)
 
         if bottleneck:
             filters1, filters2, filters3 = conv_filters
@@ -208,37 +208,40 @@ class ResNet(TFBaseModel):
                               kernel_size=1,
                               strides=(1 if self.preact else strides),
                               padding="same",
-                              name=base_name + "_1")(x)
+                              name=base_name + "_1",
+                              activation=tf.nn.relu)(x)
             # _3x3
             x = conv_function(filters=filters2,
                               kernel_size=3,
                               strides=(strides if self.preact else 1),
                               padding="same",
-                              name=base_name + "_2")(x)
+                              name=base_name + "_2",
+                              activation=tf.nn.relu)(x)
             # last _1x1
             x = conv_function(filters=filters3,
                               kernel_size=1,
                               strides=1,
                               padding="same",
-                              name=base_name + "_3")(x)
+                              name=base_name + "_3", )(x)
         else:
             # first 3x3: this conv does spatial reduction with the strides and matches the shortcut spatial size
             x = conv_function(filters=filters1,
                               kernel_size=3,
                               strides=strides,
                               padding="same",
-                              name=base_name + "_1")(x)
+                              name=base_name + "_1",
+                              activation=tf.nn.relu)(x)
             # last 3x3
             x = conv_function(filters=filters3,
                               kernel_size=3,
                               strides=1,
                               padding="same",
-                              name=base_name + "_2")(x)
+                              name=base_name + "_2", )(x)
 
         # add shortcut to residual output
-        x = tf.keras.layers.Add(name=base_name + "_add")([shortcut, x])
+        x = tf.keras.layers.Add(name=base_name + "_add")([shortcut_x, x])
 
-        # activation (accounts for preactivation)
+        # activation (accounts for pre-activation)
         x = x if self.preact else tf.nn.relu(x, name=base_name + "_relu")
 
         return x
@@ -254,23 +257,23 @@ class ResNet18(ResNet):
         super().__init__()
 
     def set_filters_and_shortcuts(self):
-        """Overides the parent method
+        """Overrides the parent method
         """
-        # block 2
-        self.block2_filters = [(64, 64)] * 2
-        self.block2_shortcuts = ["projection", "identity"]
+        # stage 2
+        self.stage2_filters = [(64, 64)] * 2
+        self.stage2_shortcuts = ["projection", "identity"]
 
-        # block 3
-        self.block3_filters = [(128, 128)] * 2
-        self.block3_shortcuts = ["projection", "identity"]
+        # stage 3
+        self.stage3_filters = [(128, 128)] * 2
+        self.stage3_shortcuts = ["projection", "identity"]
 
-        # block 4
-        self.block4_filters = [(256, 256)] * 2
-        self.block4_shortcuts = ["projection", "identity"]
+        # stage 4
+        self.stage4_filters = [(256, 256)] * 2
+        self.stage4_shortcuts = ["projection", "identity"]
 
-        # block 5
-        self.block5_filters = [(512, 512)] * 2
-        self.block5_shortcuts = ["projection", "identity"]
+        # stage 5
+        self.stage5_filters = [(512, 512)] * 2
+        self.stage5_shortcuts = ["projection", "identity"]
 
         # to use bottleneck blocks or not
         self.bottleneck = False
@@ -286,23 +289,23 @@ class ResNet32(ResNet):
         super().__init__()
 
     def set_filters_and_shortcuts(self):
-        """Overides the parent method
+        """Overrides the parent method
         """
-        # block 2
-        self.block2_filters = [(64, 64)] * 3
-        self.block2_shortcuts = ["projection", *("identity",) * 2]
+        # stage 2
+        self.stage2_filters = [(64, 64)] * 3
+        self.stage2_shortcuts = ["projection", *("identity",) * 2]
 
-        # block 3
-        self.block3_filters = [(128, 128)] * 4
-        self.block3_shortcuts = ["projection", *("identity",) * 3]
+        # stage 3
+        self.stage3_filters = [(128, 128)] * 4
+        self.stage3_shortcuts = ["projection", *("identity",) * 3]
 
-        # block 4
-        self.block4_filters = [(256, 256)] * 6
-        self.block4_shortcuts = ["projection", *("identity",) * 5]
+        # stage 4
+        self.stage4_filters = [(256, 256)] * 6
+        self.stage4_shortcuts = ["projection", *("identity",) * 5]
 
-        # block 5
-        self.block5_filters = [(512, 512)] * 3
-        self.block5_shortcuts = ["projection", *("identity",) * 2]
+        # stage 5
+        self.stage5_filters = [(512, 512)] * 3
+        self.stage5_shortcuts = ["projection", *("identity",) * 2]
 
         # to use bottleneck blocks or not
         self.bottleneck = False
@@ -318,23 +321,23 @@ class ResNet50(ResNet):
         super().__init__()
 
     def set_filters_and_shortcuts(self):
-        """Overides the parent method
+        """Overrides the parent method
         """
-        # block 2
-        self.block2_filters = [(64, 64, 256)] * 3
-        self.block2_shortcuts = ["projection", *("identity") * 2]
+        # stage 2
+        self.stage2_filters = [(64, 64, 256)] * 3
+        self.stage2_shortcuts = ["projection", *("identity",) * 2]
 
-        # block 3
-        self.block3_filters = [(128, 128, 512)] * 4
-        self.block3_shortcuts = ["projection", *("identity") * 3]
+        # stage 3
+        self.stage3_filters = [(128, 128, 512)] * 4
+        self.stage3_shortcuts = ["projection", *("identity",) * 3]
 
-        # block 4
-        self.block4_filters = [(256, 256, 1024)] * 6
-        self.block4_shortcuts = ["projection", *("identity") * 5]
+        # stage 4
+        self.stage4_filters = [(256, 256, 1024)] * 6
+        self.stage4_shortcuts = ["projection", *("identity",) * 5]
 
-        # block 5
-        self.block5_filters = [(512, 512, 2048)] * 3
-        self.block5_shortcuts = ["projection", *("identity") * 2]
+        # stage 5
+        self.stage5_filters = [(512, 512, 2048)] * 3
+        self.stage5_shortcuts = ["projection", *("identity",) * 2]
 
         # to use bottleneck blocks or not
         self.bottleneck = True
@@ -350,23 +353,23 @@ class ResNet101(ResNet):
         super().__init__()
 
     def set_filters_and_shortcuts(self):
-        """Overides the parent method
+        """Overrides the parent method
         """
-        # block 2
-        self.block2_filters = [(64, 64, 256)] * 3
-        self.block2_shortcuts = ["projection", *("identity",) * 2]
+        # stage 2
+        self.stage2_filters = [(64, 64, 256)] * 3
+        self.stage2_shortcuts = ["projection", *("identity",) * 2]
 
-        # block 3
-        self.block3_filters = [(128, 128, 512)] * 4
-        self.block3_shortcuts = ["projection", *("identity",) * 3]
+        # stage 3
+        self.stage3_filters = [(128, 128, 512)] * 4
+        self.stage3_shortcuts = ["projection", *("identity",) * 3]
 
-        # block 4
-        self.block4_filters = [(256, 256, 1024)] * 23
-        self.block4_shortcuts = ["projection", *("identity",) * 22]
+        # stage 4
+        self.stage4_filters = [(256, 256, 1024)] * 23
+        self.stage4_shortcuts = ["projection", *("identity",) * 22]
 
-        # block 5
-        self.block5_filters = [(512, 512, 2048)] * 3
-        self.block5_shortcuts = ["projection", *("identity",) * 2]
+        # stage 5
+        self.stage5_filters = [(512, 512, 2048)] * 3
+        self.stage5_shortcuts = ["projection", *("identity",) * 2]
 
         # to use bottleneck blocks or not
         self.bottleneck = True
@@ -382,23 +385,23 @@ class ResNet152(ResNet):
         super().__init__()
 
     def set_filters_and_shortcuts(self):
-        """Overides the parent method
+        """Overrides the parent method
         """
-        # block 2
-        self.block2_filters = [(64, 64, 256)] * 3
-        self.block2_shortcuts = ["projection", *("identity",) * 2]
+        # stage 2
+        self.stage2_filters = [(64, 64, 256)] * 3
+        self.stage2_shortcuts = ["projection", *("identity",) * 2]
 
-        # block 3
-        self.block3_filters = [(128, 128, 512)] * 8
-        self.block3_shortcuts = ["projection", *("identity",) * 7]
+        # stage 3
+        self.stage3_filters = [(128, 128, 512)] * 8
+        self.stage3_shortcuts = ["projection", *("identity",) * 7]
 
-        # block 4
-        self.block4_filters = [(256, 256, 1024)] * 36
-        self.block4_shortcuts = ["projection", *("identity",) * 35]
+        # stage 4
+        self.stage4_filters = [(256, 256, 1024)] * 36
+        self.stage4_shortcuts = ["projection", *("identity",) * 35]
 
-        # block 5
-        self.block5_filters = [(512, 512, 2048)] * 3
-        self.block5_shortcuts = ["projection", *("identity",) * 2]
+        # stage 5
+        self.stage5_filters = [(512, 512, 2048)] * 3
+        self.stage5_shortcuts = ["projection", *("identity",) * 2]
 
         # to use bottleneck blocks or not
         self.bottleneck = True
