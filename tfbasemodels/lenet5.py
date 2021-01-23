@@ -5,6 +5,7 @@ class LeNet5(tf.keras.Model):
     """LeNet-5 architecture with relu activations. 
     input size is 28 x 28
     """
+
     def __init__(self):
         """Initialize model layers
         """
@@ -43,10 +44,9 @@ class LeNet5(tf.keras.Model):
         # output size: 10
         self.fc5 = tf.keras.layers.Dense(units=10)
 
-
     def call(self, x):
         """forward pass
-        """ 
+        """
         x = self.conv1(x)
         x = tf.nn.tanh(x)
         x = tf.keras.layers.AvgPool2D()(x)
@@ -66,8 +66,3 @@ class LeNet5(tf.keras.Model):
         logits = self.fc5(x)
 
         return logits
-
-
-
-
-        
