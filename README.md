@@ -1,6 +1,5 @@
 # tfbasemodels
-
-This repository contains implementation for deep learning models in tensorflow. In most cases, it uses model weights from official/other implemantations (weight sources would be specified when needed). I aim to implement most deep learning models and make them readily available for use. This implementations would start with image classification models and then proceed to other deep learning models.
+tfbasemodels contains implementation for deep learning models in tensorflow and aims to ease the building and training of custom deep learning models.
 
 ## Available implementations
 ### Image Classification
