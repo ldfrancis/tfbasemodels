@@ -9,4 +9,6 @@ tfbasemodels contains implementation for deep learning models in tensorflow and 
 - VGG16, VGG19 ([weight source](https://github.com/fchollet/deep-learning-models/releases/))
 - ResNet18, ResNet32, ResNet50, ResNet101, ResNet152
 - ResNet18v2, ResNet32v2, ResNet50v2, ResNet101v2, ResNet152v2
+- ResNext50(32-4d), ResNext101(32-4d)
+- GoogLeNet(Inceptionv1), Inceptionv3
 
