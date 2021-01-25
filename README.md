@@ -1,5 +1,5 @@
 # tfbasemodels
-tfbasemodels contains implementation for deep learning models in tensorflow and aims to ease the building and training of custom deep learning models.
+tfbasemodels aims to ease the building and training of custom deep learning models. It also contains implementations for popular deep learning models in tensorflow.
 
 ## Available implementations
 ### Image Classification

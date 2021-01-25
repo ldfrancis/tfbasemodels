@@ -11,7 +11,7 @@ def conv2d_bn(filters, kernel_size, strides=(1, 1), padding='valid', data_format
               moving_mean_initializer='zeros', moving_variance_initializer='ones',
               beta_regularizer=None, gamma_regularizer=None, beta_constraint=None,
               gamma_constraint=None, renorm=False, renorm_clipping=None, renorm_momentum=0.99,
-              fused=None, trainable=True, virtual_batch_size=None, adjustment=None, name=None,
+              fused=None, trainable=True, virtual_batch_size=None, adjustment=None, name=None, bn=True,
               **kwargs):
     """Performs convolution-->batch_norm-->activation
     """
@@ -28,18 +28,19 @@ def conv2d_bn(filters, kernel_size, strides=(1, 1), padding='valid', data_format
                                    activity_regularizer=activity_regularizer,
                                    kernel_constraint=kernel_constraint, bias_constraint=bias_constraint,
                                    name=conv_name)(x)
-        x = tf.keras.layers.BatchNormalization(axis=3, momentum=momentum, epsilon=epsilon, center=center,
-                                               scale=scale,
-                                               beta_initializer=beta_initializer, gamma_initializer=gamma_initializer,
-                                               moving_mean_initializer=moving_mean_initializer,
-                                               moving_variance_initializer=moving_variance_initializer,
-                                               beta_regularizer=beta_regularizer, gamma_regularizer=gamma_regularizer,
-                                               beta_constraint=beta_constraint,
-                                               gamma_constraint=gamma_constraint, renorm=renorm,
-                                               renorm_clipping=renorm_clipping, renorm_momentum=renorm_momentum,
-                                               fused=fused, trainable=trainable, virtual_batch_size=virtual_batch_size,
-                                               adjustment=adjustment, name=bn_name,
-                                               )(x)
+        if bn:
+            x = tf.keras.layers.BatchNormalization(axis=3, momentum=momentum, epsilon=epsilon, center=center,
+                                                   scale=scale,
+                                                   beta_initializer=beta_initializer, gamma_initializer=gamma_initializer,
+                                                   moving_mean_initializer=moving_mean_initializer,
+                                                   moving_variance_initializer=moving_variance_initializer,
+                                                   beta_regularizer=beta_regularizer, gamma_regularizer=gamma_regularizer,
+                                                   beta_constraint=beta_constraint,
+                                                   gamma_constraint=gamma_constraint, renorm=renorm,
+                                                   renorm_clipping=renorm_clipping, renorm_momentum=renorm_momentum,
+                                                   fused=fused, trainable=trainable, virtual_batch_size=virtual_batch_size,
+                                                   adjustment=adjustment, name=bn_name,
+                                                   )(x)
 
         if activation: x = activation(x, name=act_name)
 
