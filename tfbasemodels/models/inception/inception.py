@@ -4,7 +4,7 @@ https://github.com/keras-team/keras-applications/blob/master/keras_applications/
 """
 import tensorflow as tf
 from ..model import TFBaseModel
-from ..utils.layer_utils import conv2d_bn
+from tfbasemodels.utils.layer_utils import conv2d_bn
 
 
 class GoogLeNet(TFBaseModel):

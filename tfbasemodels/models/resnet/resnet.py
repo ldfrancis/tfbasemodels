@@ -2,7 +2,7 @@ from abc import abstractmethod
 
 import tensorflow as tf
 from ..model import TFBaseModel
-from ..utils.layer_utils import conv2d_bn, bn_conv2d
+from tfbasemodels.utils.layer_utils import conv2d_bn, bn_conv2d
 
 
 class ResNet(TFBaseModel):

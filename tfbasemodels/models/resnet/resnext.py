@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from .resnet import ResNet
-from ..utils.layer_utils import conv2d_bn, bn_conv2d
+from tfbasemodels.utils.layer_utils import conv2d_bn, bn_conv2d
 
 
 class ResNext(ResNet):

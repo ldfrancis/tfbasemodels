@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod, abstractproperty
 import tensorflow as tf
-from .utils.file_utils import download_file, obtain_base_dir, validate_file
+from tfbasemodels.utils.file_utils import download_file, obtain_base_dir, validate_file
+from ..losses.registry import get_loss
+from ..trainers.optimizers import get_optimizer
 
 
 class TFBaseModel(ABC):
@@ -13,6 +15,9 @@ class TFBaseModel(ABC):
         tf.get_logger().setLevel('ERROR')
         tf.autograph.set_verbosity(3)
         self.model = self.build()
+        self.optimizer = None
+        self.loss_fn = None
+        self.train_step_losses = []
 
         # load model weights if pretrained
         if pretrained:
@@ -47,10 +52,28 @@ class TFBaseModel(ABC):
 
         return GFLOPs
 
-    def train(self):
+    def train(self, dataloader, epochs, lr, optim="", loss=""):
         """Trains the model
         """
-        pass
+        self.train_step_losses = []
+        self.optimizer = get_optimizer(optim) if optim else self.optimizer
+        self.loss_fn = get_loss(loss) if loss else self.loss_fn
+        for epoch in range(epochs):
+            dataloader.shuffle()
+            for inp, out in dataloader:
+                self.train_step(inp, out)
+
+    def train_step(self, inp, out):
+        with tf.GradientTape() as tape:
+            pred = self.model(inp)
+            loss = self.loss_fn(out, pred)
+        grads = tape.gradient(loss, self.model.trainable_variables)
+        self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
+        self.train_step_losses += [loss.numpy()]
+
+    def inference(self, x):
+        y = self.model(x)
+        return y
 
     def load_pretrained(self):
         """Loads pretrained weights for the model to use
