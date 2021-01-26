@@ -1,5 +1,6 @@
 """Inception implementation based on code from keras_application at
 https://github.com/keras-team/keras-applications/blob/master/keras_applications/inception_v3.py
+https://github.com/keras-team/keras-applications/blob/master/keras_applications/inception_resnet_v2.py
 """
 import tensorflow as tf
 from ..model import TFBaseModel
@@ -475,9 +476,11 @@ class Inceptionv3(TFBaseModel):
 
 class InceptionResnet(TFBaseModel):
     """The inception-resnet model"""
+
     def __init__(self):
         super().__init__()
-        self.input_shape = (299,299,3)
+        self.input_shape = (299, 299, 3)
+        self.num_classes = 1000
 
     def build(self):
         # input: 299,299,3
@@ -486,7 +489,7 @@ class InceptionResnet(TFBaseModel):
         # stem
         # in: 299,299,3
         # out: 35x35x192
-        x  = self.stem_network(x_input)
+        x = self.stem_network(x_input)
 
         # inception-A block
         # in: 35x35x192
@@ -497,71 +500,146 @@ class InceptionResnet(TFBaseModel):
         # in: 35x35x320
         # out: 35 x 35 x 320
         for i in range(10):
-            x = self.inception_resnet_A_block(x, 0.75, tf.nn.relu, idx=i+1)
+            x = self.inception_resnet_A_block(x, 0.75, tf.nn.relu, idx=i + 1)
 
+        # reduction-A block
+        # in: 35 x 35 x 320
+        # out: 17 x 17 x 1088
+        x = self.reduction_A_block(x)
 
+        # Inception-ResNet-B block
+        # in: 17 x 17 x 1088
+        # out: 17 x 17 x 1088
+        for i in range(20):
+            x = self.inception_resnet_B_block(x, 0.1, tf.nn.relu, idx=i + 1)
 
+        # Reduction-B block
+        # in: 17 x 17 x 1088
+        # out: 8 x 8 x 2080
+        x = self.reduction_B_block(x)
+
+        # Inception-ResNet-C block
+        # in: 8 x 8 x 2080
+        # out: 8 x 8 x 2080
+        for i in range(9):
+            x = self.inception_resnet_C_block(x, 0.2, tf.nn.relu, idx=i + 1)
+        x = self.inception_resnet_C_block(x, 1, None, idx=10)
+
+        # Final Conv
+        # in: 8 x 8 x 2080
+        # out: 8 x 8 x 1536
+        x = conv2d_bn(1536, 1, padding="same", use_bias=False, activation=tf.nn.relu, name='Final_Conv')(x)
+
+        # define output
+        if self.include_top:
+            # Classification block
+            x = tf.keras.layers.GlobalAveragePooling2D(name='avg_pool')(x)
+            x = tf.keras.layers.Dense(self.num_classes, activation='softmax', name='predictions')(x)
+        else:
+            if self.pooling == 'avg':
+                x = tf.keras.layers.GlobalAveragePooling2D()(x)
+            elif self.pooling == 'max':
+                x = tf.keras.layers.GlobalMaxPooling2D()(x)
+
+        return tf.keras.Model(inputs=[x_input], outputs=[x])
 
     @staticmethod
     def stem_network(x):
         """Stem network. Set of operations applied to input before using the inception modules"""
         base_name = "stem"
-        x = conv2d_bn(32, 3, 2, padding="valid", activation=tf.nn.relu, use_bias=False, name=base_name+"_1")(x)
-        x = conv2d_bn(32, 3, use_bias=False, name=base_name+"_2")(x)
-        x = conv2d_bn(64, 3, padding="same", use_bias=False,name=base_name+"_3")(x)
+        x = conv2d_bn(32, 3, 2, padding="valid", activation=tf.nn.relu, use_bias=False, name=base_name + "_1")(x)
+        x = conv2d_bn(32, 3, use_bias=False, name=base_name + "_2")(x)
+        x = conv2d_bn(64, 3, padding="same", use_bias=False, name=base_name + "_3")(x)
         x = tf.keras.layers.MaxPooling2D(3, strides=2)(x)
-        x = conv2d_bn(80, 1, use_bias=False, name=base_name+"_4")(x)
-        x = conv2d_bn(192, 3, use_bias=False, name=base_name+"_5")(x)
+        x = conv2d_bn(80, 1, use_bias=False, name=base_name + "_4")(x)
+        x = conv2d_bn(192, 3, use_bias=False, name=base_name + "_5")(x)
         x = tf.keras.layers.MaxPooling2D(3, strides=2)(x)
         return x
 
     @staticmethod
     def inception_A_block(x):
         base_name = "inception_A"
-        _1x1 = conv2d_bn(96, 1, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name+"_1")(x)
-        _5x5 = conv2d_bn(48, 1, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name+"_5_1")(x)
+        _1x1 = conv2d_bn(96, 1, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_1")(x)
+        _5x5 = conv2d_bn(48, 1, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_5_1")(x)
         _5x5 = conv2d_bn(64, 5, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_5_2")(_5x5)
         _3x3 = conv2d_bn(64, 1, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_3_1")(x)
         _3x3 = conv2d_bn(96, 3, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_3_2")(_3x3)
         _3x3 = conv2d_bn(96, 3, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_3_3")(_3x3)
-        pool = tf.keras.layers.AveragePooling2D(3, strides=1, padding='same', name=base_name+"avgpool_1")(x)
-        pool = conv2d_bn(64, 1, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name+"avgpool_2")(pool)
-        concat = tf.keras.layers.concatenate([_1x1, _5x5, _3x3, pool], axis=3, name=base_name+"_concat")
+        pool = tf.keras.layers.AveragePooling2D(3, strides=1, padding='same', name=base_name + "avgpool_1")(x)
+        pool = conv2d_bn(64, 1, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "avgpool_2")(
+            pool)
+        concat = tf.keras.layers.concatenate([_1x1, _5x5, _3x3, pool], axis=3, name=base_name + "_concat")
         return concat
 
     @staticmethod
     def reduction_A_block(x):
         base_name = "reduction_A"
+        _3x3 = conv2d_bn(384, 3, strides=2, use_bias=False, activation=tf.nn.relu, name=base_name + "_3")(x)
+        _3x3b = conv2d_bn(256, 1, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_3b_1")(x)
+        _3x3b = conv2d_bn(256, 3, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_3b_2")(
+            _3x3b)
+        _3x3b = conv2d_bn(384, 3, strides=2, use_bias=False, activation=tf.nn.relu, name=base_name + "_3b_3")(_3x3b)
+        pool = tf.keras.layers.MaxPooling2D(3, strides=2, padding='valid')(x)
+        concat = tf.keras.layers.concatenate([_3x3, _3x3b, pool])
+        return concat
 
     @staticmethod
     def reduction_B_block(x):
         base_name = "reduction_B"
+        _3x3 = conv2d_bn(256, 1, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_3_1")(x)
+        _3x3 = conv2d_bn(384, 3, strides=2, use_bias=False, activation=tf.nn.relu, name=base_name + "_3_2")(_3x3)
+        _3x3b = conv2d_bn(256, 1, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_3b_1")(x)
+        _3x3b = conv2d_bn(288, 3, strides=2, use_bias=False, activation=tf.nn.relu, name=base_name + "_3b_2")(_3x3b)
+        _3x3c = conv2d_bn(256, 1, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_3c_1")(x)
+        _3x3c = conv2d_bn(288, 3, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_3c_2")(
+            _3x3c)
+        _3x3c = conv2d_bn(320, 3, strides=2, use_bias=False, activation=tf.nn.relu, name=base_name + "_3c_3")(_3x3c)
+        pool = tf.keras.layers.MaxPooling2D(3, strides=2, padding='valid')(x)
+        concat = tf.keras.layers.concatenate([_3x3, _3x3b, _3x3c, pool], axis=3, name=base_name + "_concat")
+        return concat
 
     @staticmethod
     def inception_resnet_A_block(x, scale, activation=None, idx=0):
-        B, H,W,C = x.shape
         base_name = f"inception_resnet_A_{idx}"
-        _1x1 = conv2d_bn(32, 1, padding="same", activation=tf.nn.relu,use_bias=False, name=base_name+"_1")(x)
-        _3x3 = conv2d_bn(32, 1, padding='same', activation=tf.nn.relu,use_bias=False, name=base_name+"_3_1")(x)
-        _3x3 = conv2d_bn(32, 3, padding="same", activation=tf.nn.relu,use_bias=False, name=base_name+"_3_1")(_3x3)
-        _3x3b = conv2d_bn(32, 1, padding="same", activation=tf.nn.relu,use_bias=False, name=base_name+"_3b_1")(x)
-        _3x3b = conv2d_bn(48, 3, padding="same", activation=tf.nn.relu,use_bias=False, name=base_name+'_3b_2')(_3x3b)
-        _3x3b = conv2d_bn(64, 3, padding="same", activation=tf.nn.relu,use_bias=False, name=base_name+"_3b_3")(_3x3b)
-        concat = tf.keras.layers.concatenate([_1x1, _3x3, _3x3b], axis=3, name=base_name+"_concat")
-        up = conv2d_bn(C, 1, bn = False, name=base_name+"_up")(concat)
-        out = tf.keras.layers.Lambda(lambda inp: inp[0]+inp[1]*inp[2], name=base_name+"_add_and_scale")([x,up,scale])
+        _1x1 = conv2d_bn(32, 1, padding="same", activation=tf.nn.relu, use_bias=False, name=base_name + "_1")(x)
+        _3x3 = conv2d_bn(32, 1, padding='same', activation=tf.nn.relu, use_bias=False, name=base_name + "_3_1")(x)
+        _3x3 = conv2d_bn(32, 3, padding="same", activation=tf.nn.relu, use_bias=False, name=base_name + "_3_1")(_3x3)
+        _3x3b = conv2d_bn(32, 1, padding="same", activation=tf.nn.relu, use_bias=False, name=base_name + "_3b_1")(x)
+        _3x3b = conv2d_bn(48, 3, padding="same", activation=tf.nn.relu, use_bias=False, name=base_name + '_3b_2')(_3x3b)
+        _3x3b = conv2d_bn(64, 3, padding="same", activation=tf.nn.relu, use_bias=False, name=base_name + "_3b_3")(_3x3b)
+        concat = tf.keras.layers.concatenate([_1x1, _3x3, _3x3b], axis=3, name=base_name + "_concat")
+        return InceptionResnet.inception_resnet_block_tip(x, scale, concat, activation, base_name)
+
+    @staticmethod
+    def inception_resnet_B_block(x, scale, activation=None, idx=0):
+        base_name = f"inception_resnet_B_{idx}"
+        _1x1 = conv2d_bn(192, 1, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_1")(x)
+        _7x7 = conv2d_bn(128, 1, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_7_1")(x)
+        _7x7 = conv2d_bn(160, [1, 7], padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_7_2")(
+            _7x7)
+        _7x7 = conv2d_bn(192, [7, 1], padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_7_3")(
+            _7x7)
+        concat = tf.keras.layers.concatenate([_1x1, _7x7], axis=3, name=base_name + "_concat")
+        return InceptionResnet.inception_resnet_block_tip(x, scale, concat, activation, base_name)
+
+    @staticmethod
+    def inception_resnet_C_block(x, scale, activation=None, idx=0):
+        base_name = f"inception_resnet_C_{idx}"
+        _1x1 = conv2d_bn(192, 1, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_1")(x)
+        _3x3 = conv2d_bn(192, 1, padding="same", use_bias=False, activation=tf.nn.relu, name=base_name + "_3_1")(x)
+        _3x3 = conv2d_bn(224, [1, 3], padding="same", use_bias=False, activation=tf.nn.relu,
+                         name=base_name + "_3_1")(_3x3)
+        _3x3 = conv2d_bn(256, [3, 1], padding="same", use_bias=False, activation=tf.nn.relu,
+                         name=base_name + "_3_2")(_3x3)
+        concat = tf.keras.layers.concatenate([_1x1, _3x3], axis=3, name=base_name + "_concat")
+        return InceptionResnet.inception_resnet_block_tip(x, scale, concat, activation, base_name)
+
+    @staticmethod
+    def inception_resnet_block_tip(x, scale, concat, activation, base_name):
+        B, H, W, C = x.shape
+        up = conv2d_bn(C, 1, bn=False, name=base_name + "_up")(concat)
+        out = tf.keras.layers.Lambda(lambda inp: inp[0] + inp[1] * inp[2], name=base_name + "_add_and_scale")(
+            [x, up, scale])
         if activation:
-            out = activation(out, name=base_name+"_out_act")
+            out = activation(out, name=base_name + "_out_act")
         return out
-
-    @staticmethod
-    def inception_resnet_B_block(x):
-        base_name = "inception_resnet_B"
-
-    @staticmethod
-    def inception_resnet_C_block(x):
-        base_name = "inception_resnet_C"
-
-
-
-
