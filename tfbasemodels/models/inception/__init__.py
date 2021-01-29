@@ -1,1 +1,1 @@
-from .inception import GoogLeNet, Inceptionv1, Inceptionv3
+from .inception import GoogLeNet, Inceptionv1, Inceptionv3, InceptionResnet
