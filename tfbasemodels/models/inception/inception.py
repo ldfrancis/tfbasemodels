@@ -408,7 +408,7 @@ class Inceptionv3(TFBaseModel):
             pool = conv2d_bn(192, 1, padding="same", activation=tf.nn.relu, name=base_name + "pool_2")(pool)
             concat = tf.keras.layers.concatenate([_1x1, _7x7, _7x7dbl, pool], axis=3, name=base_name + "concat")(pool)
             return concat
-        elif name == "5":
+        elif name == 5:
             _1x1 = conv2d_bn(192, 1, padding="same", activation=tf.nn.relu, name=base_name + "1")(x)
             _7x7 = conv2d_bn(192, 1, padding="same", activation=tf.nn.relu, name=base_name + "7_1")(x)
             _7x7 = conv2d_bn(192, (1, 7), padding="same", activation=tf.nn.relu, name=base_name + "7_2")(_7x7)
