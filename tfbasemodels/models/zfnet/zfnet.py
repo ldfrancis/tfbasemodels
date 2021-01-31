@@ -1,5 +1,5 @@
 import tensorflow as tf
-from .model import TFBaseModel
+from tfbasemodels.models.model import TFBaseModel
 
 
 class ZFNet(TFBaseModel):

@@ -1,4 +1,4 @@
-from .lenet5 import LeNet5
+from .lenet import LeNet5
 from .alexnet import AlexNet
 from .zfnet import ZFNet
 from .vgg import VGG16, VGG19
