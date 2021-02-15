@@ -11,14 +11,15 @@ class VGG(TFBaseModel):
         include_top
         pooling
     """
+    input_shape = [224, 224, 3]
 
-    def __init__(self, n_layers: int, include_top=True, pooling=None, pretrained=False):
+    def __init__(self, n_layers: int, include_top=True, pooling=None, pretrained=False, name="vgg"):
         assert n_layers in [16, 19]
         self.n_layers = n_layers
         self.n_conv_blocks = 5
-        self.input_shape = [224, 224, 3]
         self.include_top = include_top
         self.pooling = pooling
+        self.model_name = name
         if include_top:
             self.pretrained_weights_url = ("https://github.com/fchollet/"
                                            "deep-learning-models/releases/download/v0.1/"
@@ -40,7 +41,7 @@ class VGG(TFBaseModel):
         assert self.n_conv_blocks == 5  # always 5 blocks
 
         # input layer
-        inp_x = tf.keras.layers.Input(shape=self.input_shape)
+        inp_x = tf.keras.layers.Input(shape=VGG.input_shape)
 
         # vgg convolution blocks 1 - 5
         for block in range(1, self.n_conv_blocks + 1):
@@ -55,7 +56,7 @@ class VGG(TFBaseModel):
             logits = tf.keras.layers.Dense(1000, name="logits")(x)
 
             # return model
-            return tf.keras.Model(inputs=[inp_x], outputs=[logits])
+            return inp_x, logits
         else:
             # return output from convolutional blocks
             if self.pooling is "avg":
@@ -63,7 +64,7 @@ class VGG(TFBaseModel):
             elif self.pooling is "max":
                 x = tf.keras.layers.GlobalMaxPool2D()(x)
 
-            return tf.keras.Model(inputs=[inp_x], outputs=[x])
+            return inp_x, x
 
     def build_block(self, idx, n_layers, x):
         """builds a block in the vgg architecture

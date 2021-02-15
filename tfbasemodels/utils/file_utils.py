@@ -3,10 +3,8 @@ import re
 import os
 import hashlib
 from pathlib import Path
-from sys import exit
 from .progressbar_utils import obtain_progressbar
 from math import ceil
-
 
 
 def obtain_base_dir():

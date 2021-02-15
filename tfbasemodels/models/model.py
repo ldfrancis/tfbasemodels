@@ -5,7 +5,7 @@ from ..losses.registry import get_loss
 from ..trainers.optimizers import get_optimizer
 
 
-class TFBaseModel(ABC):
+class TFBaseModel(tf.keras.Model):
     """A wrapper for a tf.keras.Model instance
     """
 
@@ -14,8 +14,12 @@ class TFBaseModel(ABC):
         """
         tf.get_logger().setLevel('ERROR')
         tf.autograph.set_verbosity(3)
-        self.model = self.build()
-        self.optimizer = None
+
+        # build model
+        inputs, outputs = self.build()
+        super().__init__(inputs=[inputs], outputs=[outputs], name=self.model_name)
+
+        self.optimizer = 'adam'
         self.loss_fn = None
         self.train_step_losses = []
 
@@ -23,13 +27,10 @@ class TFBaseModel(ABC):
         if pretrained:
             self.load_pretrained()
 
-    def __getattr__(self, name):
-        return getattr(self.model, name)
-
     @abstractmethod
     def build(self):
         """Must be implemented by subclass. The model architecture is built and
-        a tf.keras.Model instance is returned.
+        an input tf.Tensor and output tf.Tensor instance is returned.
         """
         raise NotImplementedError()
 
@@ -52,12 +53,15 @@ class TFBaseModel(ABC):
 
         return GFLOPs
 
-    def train(self, dataloader, epochs, lr, optim="", loss=""):
+    def train(self, datasource, epochs, lr, optim="", loss=""):
         """Trains the model
         """
+        raise NotImplementedError # work in progress
+        # create the dataloader from the datasource
+        dataloader = datasource
         self.train_step_losses = []
-        self.optimizer = get_optimizer(optim) if optim else self.optimizer
-        self.loss_fn = get_loss(loss) if loss else self.loss_fn
+        self.optimizer = get_optimizer(optim) if optim else get_optimizer(self.optimizer)
+        self.loss = get_loss(loss) if loss else get_loss(self.loss)
         for epoch in range(epochs):
             dataloader.shuffle()
             for inp, out in dataloader:
@@ -65,15 +69,11 @@ class TFBaseModel(ABC):
 
     def train_step(self, inp, out):
         with tf.GradientTape() as tape:
-            pred = self.model(inp)
+            pred = self(inp, training=True)
             loss = self.loss_fn(out, pred)
         grads = tape.gradient(loss, self.model.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
         self.train_step_losses += [loss.numpy()]
-
-    def inference(self, x):
-        y = self.model(x)
-        return y
 
     def load_pretrained(self):
         """Loads pretrained weights for the model to use
