@@ -3,6 +3,7 @@ import tensorflow as tf
 from tfbasemodels.utils.file_utils import download_file, obtain_base_dir, validate_file
 from ..losses.registry import get_loss
 from ..trainers.optimizers import get_optimizer
+from tfdata import DataLoader, DataSource
 
 
 class TFBaseModel(tf.keras.Model):
@@ -53,27 +54,63 @@ class TFBaseModel(tf.keras.Model):
 
         return GFLOPs
 
-    def train(self, datasource, epochs, lr, optim="", loss=""):
+    def train(self, datasource, epochs, lr, optim="", loss="", validation=None, batch_size=32):
         """Trains the model
         """
-        raise NotImplementedError # work in progress
-        # create the dataloader from the datasource
-        dataloader = datasource
+        # perform validation split if available and create the dataloader from the datasource
+        if isinstance(validation, int):
+            datasource.validation_split(validation)
+            dataloader = DataLoader(datasource.train_source, batch_size)
+            val_loader = DataLoader(datasource.val_source, batch_size)
+        elif isinstance(validation, DataSource):
+            dataloader = DataLoader(datasource, batch_size)
+            val_loader = DataLoader(validation, batch_size)
+        else:
+            dataloader = DataLoader(datasource, batch_size)
+
         self.train_step_losses = []
+        self.eval_losses = []
+        self.step_epoch_map = {}
         self.optimizer = get_optimizer(optim) if optim else get_optimizer(self.optimizer)
         self.loss = get_loss(loss) if loss else get_loss(self.loss)
+        self.epoch = 0
+        self.train_step = 0
         for epoch in range(epochs):
+            self.epoch = epoch+1
             dataloader.shuffle()
+            print(f"epoch {self.epoch}: train_loss: {0:4f}", end="")
             for inp, out in dataloader:
-                self.train_step(inp, out)
+                train_info = self.train_step(inp, out)
+                self.train_step_losses += [train_info["loss"]]
+            self.step_epoch_map[self.step] = self.epoch
+            if validation:
+                val_loss = tf.keras.metrics.Mean
+                for inp,out in val_loader:
+                    eval_info = self.eval_step(inp, out)
+                    val_loss.update_state(eval_info["loss"])
+                print(f"\repoch {self.epoch}: train_loss: {float(loss.numpy()):4f} "
+                      f"val_loss: {float(val_loss.result().numpy()):4f}")
+            else:
+                print("\n")
 
     def train_step(self, inp, out):
         with tf.GradientTape() as tape:
             pred = self(inp, training=True)
-            loss = self.loss_fn(out, pred)
+            loss = self.loss(out, pred)
+            self.train_loss = loss
+            print(f"\repoch {self.epoch}: train_loss: {float(loss.numpy()):4f}", end="")
         grads = tape.gradient(loss, self.model.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
-        self.train_step_losses += [loss.numpy()]
+        train_info = {"loss":loss.numpy()}
+        self.train_step += 1
+        return train_info
+
+    def eval_step(self, inp, out):
+        pred = self(inp)
+        loss = self.loss(out, pred)
+        self.val_loss = loss
+        eval_info = {"loss":loss.numpy()}
+        return eval_info
 
     def load_pretrained(self):
         """Loads pretrained weights for the model to use

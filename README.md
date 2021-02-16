@@ -1,6 +1,6 @@
 # tfbasemodels
 tfbasemodels aims to ease the building and training of custom deep learning models. It includes my attempt to implement popular deep learning models in tensorflow.
-The rigour encountered in this attempt inspired the building of a UI neural network architecture design.
+The rigour encountered in this attempt inspired the building of a GUI application for neural network architecture design.
 
 ## Available implementations
 ### Image Classification
