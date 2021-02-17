@@ -21,12 +21,19 @@ class TFBaseModel(tf.keras.Model):
         super().__init__(inputs=[inputs], outputs=[outputs], name=self.model_name)
 
         self.optimizer = 'adam'
-        self.loss_fn = None
-        self.train_step_losses = []
+        self.loss = None
+
 
         # load model weights if pretrained
         if pretrained:
             self.load_pretrained()
+
+        # initialize some attributes
+        self._eval_losses = None
+        self._step_epoch_map = None
+        self._train_step = None
+        self._train_step_losses = None
+        self._epoch = None
 
     @abstractmethod
     def build(self):
@@ -68,20 +75,20 @@ class TFBaseModel(tf.keras.Model):
         else:
             dataloader = DataLoader(datasource, batch_size)
 
-        self.train_step_losses = []
-        self.eval_losses = []
-        self.step_epoch_map = {}
+        self._train_step_losses = []
+        self._eval_losses = []
+        self._step_epoch_map = {}
         self.optimizer = get_optimizer(optim) if optim else get_optimizer(self.optimizer)
         self.loss = get_loss(loss) if loss else get_loss(self.loss)
-        self.epoch = 0
-        self.train_step = 0
+        self._epoch = 0
+        self._train_step = 0
         for epoch in range(epochs):
-            self.epoch = epoch+1
+            self._epoch = epoch+1
             dataloader.shuffle()
             print(f"epoch {self.epoch}: train_loss: {0:4f}", end="")
             for inp, out in dataloader:
                 train_info = self.train_step(inp, out)
-                self.train_step_losses += [train_info["loss"]]
+                self._train_step_losses += [train_info["loss"]]
             self.step_epoch_map[self.step] = self.epoch
             if validation:
                 val_loss = tf.keras.metrics.Mean
@@ -90,25 +97,25 @@ class TFBaseModel(tf.keras.Model):
                     val_loss.update_state(eval_info["loss"])
                 print(f"\repoch {self.epoch}: train_loss: {float(loss.numpy()):4f} "
                       f"val_loss: {float(val_loss.result().numpy()):4f}")
+                self._eval_losses += [val_loss.result().numpy()]
             else:
                 print("\n")
+            self._step_epoch_map[self._train_step] = epoch
 
     def train_step(self, inp, out):
         with tf.GradientTape() as tape:
             pred = self(inp, training=True)
             loss = self.loss(out, pred)
-            self.train_loss = loss
             print(f"\repoch {self.epoch}: train_loss: {float(loss.numpy()):4f}", end="")
         grads = tape.gradient(loss, self.model.trainable_variables)
         self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
-        train_info = {"loss":loss.numpy()}
-        self.train_step += 1
+        train_info = {"loss": loss.numpy()}
+        self._train_step += 1
         return train_info
 
     def eval_step(self, inp, out):
         pred = self(inp)
         loss = self.loss(out, pred)
-        self.val_loss = loss
         eval_info = {"loss":loss.numpy()}
         return eval_info
 
