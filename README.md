@@ -11,4 +11,5 @@ tfbasemodels aims to ease the building and training of custom deep learning mode
 - ResNet18v2, ResNet32v2, ResNet50v2, ResNet101v2, ResNet152v2
 - ResNext50(32-4d), ResNext101(32-4d)
 - GoogLeNet(Inceptionv1), Inceptionv3, inception-resnetv2
+- Mobilenet
 
